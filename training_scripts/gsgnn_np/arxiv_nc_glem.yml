@@ -20,6 +20,9 @@ gsf:
     lm_train_nodes: 10
     lm_infer_batch_size: 32
     freeze_lm_encoder_epochs: 0
+    glem:
+      em_order_gnn_first: true
+      inference_using_gnn: true
   gnn:
     fanout: "15,10"
     num_layers: 2
