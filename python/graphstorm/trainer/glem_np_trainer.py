@@ -76,6 +76,10 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             The number of iteration to train the model before saving the model.
         save_perf_results_path : str
             The path of the file where the performance results are saved.
+        freeze_input_layer_epochs: int
+            Freeze the input layer for N epochs. This is commonly used when
+            the input layer contains language models.
+            Default: 0, no freeze.
         """
         # Check the correctness of configurations.
         if self.evaluator is not None:
@@ -93,6 +97,11 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         device = model.device
         data = train_loader.data
 
+        if freeze_input_layer_epochs > 0:
+            self._model.lm.freeze_input_encoder(data)
+            # print('#### Before epoch loop:')
+            # self._model._report_parameters()
+
         # training loop
         dur = []
         total_steps = 0
@@ -105,17 +114,26 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             t0 = time.time()
             rt_profiler.start_record()
 
-            # 1st round: train LM, fix gnn
-            use_gnn = False
-            self._model.toggle('lm')
-            self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
-                                device, rt_profiler,
-                                epoch, total_steps, use_mini_batch_infer,
-                                save_model_path, save_model_frequency)
+            if freeze_input_layer_epochs <= epoch:
+                self._model.lm.unfreeze_input_encoder()
+                # 1st round: train LM, fix gnn
+                use_gnn = False
+                self._model.toggle('lm')
+                # print('#### After _model.toggle(lm) call')
+                # self._model._report_parameters()
+                self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
+                                    device, rt_profiler,
+                                    epoch, total_steps, use_mini_batch_infer,
+                                    save_model_path, save_model_frequency)
+                # lm_finish_time = time.time()
+                # if self.rank == 0:
+                #     print("Epoch {}, lm takes {}".format(epoch, lm_finish_time-t0))
 
             # 2nd round: train GNN, fix LM
             use_gnn = True
             self._model.toggle('gnn')
+            # print('#### After _model.toggle(gnn) call')
+            # self._model._report_parameters()
             self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
                                 device, rt_profiler,
                                 epoch, total_steps, use_mini_batch_infer,
@@ -126,8 +144,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                 break
 
             epoch_time = time.time() - t0
-            if self.rank == 0:
-                print("Epoch {} take {}".format(epoch, epoch_time))
+            # if self.rank == 0:
+            #     print("Epoch {}, gnn takes {}".format(epoch, time.time() - lm_finish_time))
             dur.append(epoch_time)
 
         rt_profiler.save_profile()
@@ -161,6 +179,10 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                 input_nodes = {g.ntypes[0]: input_nodes}
             input_feats = data.get_node_feats(input_nodes, device)
             lbl = data.get_labels(seeds, device)
+            # target_ntype = list(lbl.keys())[0]
+            # n_dst_nodes = seeds[target_ntype].size(0)
+            # assert th.equal(seeds[target_ntype], input_nodes[target_ntype][:n_dst_nodes]), \
+            #     "the first part of input_nodes are not seeds!"
             profiler.record('train_node_feats')
 
             blocks = [block.to(device) for block in blocks]
