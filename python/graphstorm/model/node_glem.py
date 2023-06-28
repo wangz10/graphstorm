@@ -156,6 +156,13 @@ class GLEM(GSgnnNodeModelBase):
         else:
             raise ValueError(f"Unknown model part: {part}")
 
+    def _report_parameters(self):
+        """Report number of trainable parameters in lm and gnn. """
+        lm_n_params = sum(p.numel() for p in self.lm.parameters() if p.requires_grad)
+        gnn_n_params = sum(p.numel() for p in self.gnn.parameters() if p.requires_grad)
+        print('LM trainable parameters: ', lm_n_params)
+        print('GNN trainable parameters: ', gnn_n_params)
+
     def forward(self, blocks, node_feats, edge_feats, labels, input_nodes, use_gnn=True):
         """ Forward pass for GLEM model.
         Parameters
@@ -239,17 +246,32 @@ class GLEM(GSgnnNodeModelBase):
             preds = decoder.predict(emb)
         return preds, emb
 
+    def _get_seed_nodes(self, input_nodes, blocks):
+        """ Get seed nodes from input nodes and labels of the seed nodes.
+        Parameters
+        ----------        
+        input_nodes : {target_ntype: tensor.shape [bs], other_ntype: []}
+        blocks : list[dgl.Block]
+        """
+        target_ntype = blocks[-1].dsttypes[0]
+        n_seed_nodes = blocks[-1].num_dst_nodes()
+        return {target_ntype: input_nodes[target_ntype][:n_seed_nodes]}
+
     def _embed_nodes(self, blocks, node_feats, _, input_nodes=None, do_gnn_encode=True):
         """ Embed and encode nodes with LM, optionally followed by GNN encoder for GLEM model
         """
-        # Get the projected LM embeddings without GNN message passing
-        encode_embs = self.lm.comput_input_embed(input_nodes, node_feats)
-        target_ntype = list(encode_embs.keys())[0]
         if do_gnn_encode:
+            # Get the projected LM embeddings for all sampled nodes without GNN message passing:
+            encode_embs = self.lm.comput_input_embed(input_nodes, node_feats)
+            target_ntype = list(encode_embs.keys())[0]
             # GNN message passing
             encode_embs_gnn = self.gnn.gnn_encoder.forward(blocks, encode_embs)
-            return encode_embs[target_ntype], encode_embs_gnn[target_ntype]
+            n_seed_nodes = blocks[-1].num_dst_nodes()
+            return encode_embs[target_ntype][:n_seed_nodes], encode_embs_gnn[target_ntype]
         else:
+            # Get the projected LM embeddings for seed nodes:
+            seed_nodes = self._get_seed_nodes(input_nodes, blocks)
+            encode_embs = self.lm.comput_input_embed(seed_nodes, node_feats)
             return encode_embs[target_ntype], None
 
     def _process_labels(self, labels):
