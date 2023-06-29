@@ -16,6 +16,7 @@
     GLEM model for node prediction task in GraphStorm.
 """
 import os
+from copy import deepcopy
 import torch as th
 import dgl
 
@@ -117,7 +118,7 @@ class GLEM(GSgnnNodeModelBase):
         predict node labels during training
         """
         self.lm.set_decoder(decoder)
-        self.gnn.set_decoder(decoder)
+        self.gnn.set_decoder(deepcopy(decoder))
 
     def set_loss_func(self, loss_fn):
         """Set the final loss function based on the node task 
