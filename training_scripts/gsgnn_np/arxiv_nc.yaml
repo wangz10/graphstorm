@@ -24,7 +24,7 @@ gsf:
     fanout: "15,10"
     num_layers: 2
     hidden_size: 128
-    use_mini_batch_infer: false
+    use_mini_batch_infer: true
   input:
     restore_model_path: null
   output:

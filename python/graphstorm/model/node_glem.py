@@ -62,16 +62,18 @@ class GLEM(GSgnnNodeModelBase):
         else:
             sparse_opts = []
 
-        dense_params = self.gnn.get_dense_params()
+        dense_params = self.gnn.get_dense_params() + self.lm.get_dense_params()
+        # node_input_encoder.get_general_dense_parameters: .input_projs and .proj_matrix 
         if len(dense_params) > 0:
-            optimizer = th.optim.Adam(self.gnn.get_dense_params(), lr=lr,
+            optimizer = th.optim.Adam(dense_params, lr=lr,
                                       weight_decay=weight_decay)
             dense_opts = [optimizer]
         else:
             dense_opts = []
 
         # Combine params in the LM transformers and LM decoder head
-        lm_params = self.lm.get_lm_params() + self.lm.get_dense_params()
+        # lm_params = self.lm.get_lm_params() + self.lm.get_dense_params()
+        lm_params = self.lm.get_lm_params()
         if len(lm_params) > 0:
             lm_optimizer = th.optim.Adam(lm_params, \
                                          lr=lm_lr if lm_lr is not None else lr,
@@ -139,6 +141,8 @@ class GLEM(GSgnnNodeModelBase):
         """Unfreeze parameters in lm or gnn"""
         if part == 'lm':
             params = self.lm.parameters()
+        elif part == 'lm-input-proj':
+            params = self.lm.node_input_encoder.input_projs.parameters()
         elif part == 'gnn':
             params = self.gnn.parameters()
         for param in params:
@@ -154,6 +158,7 @@ class GLEM(GSgnnNodeModelBase):
             self.training_lm = False
             self.freeze_params('lm')
             self.unfreeze_params('gnn')
+            self.unfreeze_params('lm-input-proj') # this is essential
         else:
             raise ValueError(f"Unknown model part: {part}")
 
@@ -164,7 +169,7 @@ class GLEM(GSgnnNodeModelBase):
         print('LM trainable parameters: ', lm_n_params)
         print('GNN trainable parameters: ', gnn_n_params)
 
-    def forward(self, blocks, node_feats, edge_feats, labels, input_nodes, use_gnn=True):
+    def forward(self, blocks, node_feats, edge_feats, labels, input_nodes, use_gnn=True, no_pl=False):
         """ Forward pass for GLEM model.
         Parameters
         ----------        
@@ -175,29 +180,33 @@ class GLEM(GSgnnNodeModelBase):
         input_nodes : {target_ntype: tensor.shape [bs], other_ntype: []}
         use_gnn : bool
             If True, use GNN's decoder, otherwise, use LM's decoder 
+        no_pl : bool
+            If True, do not calculate pseudo likelihood, use MLE loss only
         """
         if use_gnn:
-            total_loss = self.forward_gnn(blocks, node_feats, edge_feats, labels, input_nodes)
+            total_loss = self.forward_gnn(blocks, node_feats, edge_feats, labels, input_nodes, no_pl=no_pl)
         else:
-            total_loss = self.forward_lm(blocks, node_feats, edge_feats, labels, input_nodes)
+            total_loss = self.forward_lm(blocks, node_feats, edge_feats, labels, input_nodes, no_pl=no_pl)
         return total_loss
 
-    def forward_gnn(self, blocks, node_feats, _, labels, input_nodes):
+    def forward_gnn(self, blocks, node_feats, _, labels, input_nodes, no_pl=False):
         """Forward pass for node prediction using GNN
         """
         emb_lm, emb_gnn = self._embed_nodes(blocks, node_feats, _, input_nodes, do_gnn_encode=True)
         labels = self._process_labels(labels)
         logits = self.gnn.decoder(emb_gnn)
+        if no_pl:
+            loss = self.gnn.loss_func(logits, labels)
+        else:
+            batch_size = labels.size(0)
+            n_gold_nodes = batch_size // 2
+            # compute pseudo labels from LM
+            logits_lm = self.lm.decoder(emb_lm[n_gold_nodes:])
+            pseudo_labels = logits_lm.argmax(-1)
 
-        batch_size = labels.size(0)
-        n_gold_nodes = batch_size // 2
-        # compute pseudo labels from LM
-        logits_lm = self.lm.decoder(emb_lm[n_gold_nodes:])
-        pseudo_labels = logits_lm.argmax(-1)
-
-        # GLEM loss
-        loss = compute_loss(self.gnn.loss_func, logits, labels[:n_gold_nodes], pseudo_labels,
-                            pl_weight=self.pl_weight)
+            # GLEM loss
+            loss = compute_loss(self.gnn.loss_func, logits, labels[:n_gold_nodes], pseudo_labels, 
+                                pl_weight=self.pl_weight)
 
         # add regularization loss to all parameters to avoid the unused parameter errors
         reg_loss = th.tensor(0.).to(loss.device)
@@ -208,20 +217,23 @@ class GLEM(GSgnnNodeModelBase):
         return loss + self.alpha_l2norm * reg_loss
 
 
-    def forward_lm(self, blocks, node_feats, _, labels, input_nodes):
+    def forward_lm(self, blocks, node_feats, _, labels, input_nodes, no_pl=False):
         """Forward pass for node prediction using LM"""
-        emb_lm, emb_gnn = self._embed_nodes(blocks, node_feats, _, input_nodes, do_gnn_encode=True)
+        emb_lm, emb_gnn = self._embed_nodes(blocks, node_feats, _, input_nodes, do_gnn_encode=not no_pl)
         labels = self._process_labels(labels)
         logits = self.lm.decoder(emb_lm)
-        batch_size = labels.size(0)
-        n_gold_nodes = batch_size // 2
-        # compute pseudo labels from GNN
-        logits_gnn = self.gnn.decoder(emb_gnn[n_gold_nodes:])
-        pseudo_labels = logits_gnn.argmax(-1)
+        if no_pl:
+            loss = self.lm.loss_func(logits, labels)
+        else:
+            batch_size = labels.size(0)
+            n_gold_nodes = batch_size // 2
+            # compute pseudo labels from GNN
+            logits_gnn = self.gnn.decoder(emb_gnn[n_gold_nodes:])
+            pseudo_labels = logits_gnn.argmax(-1)
 
-        # GLEM loss
-        loss = compute_loss(self.gnn.loss_func, logits, labels[:n_gold_nodes], pseudo_labels,
-                            pl_weight=self.pl_weight)
+            # GLEM loss
+            loss = compute_loss(self.gnn.loss_func, logits, labels[:n_gold_nodes], pseudo_labels,
+                                pl_weight=self.pl_weight)
 
         # add regularization loss to all parameters to avoid the unused parameter errors
         reg_loss = th.tensor(0.).to(loss.device)
@@ -266,13 +278,14 @@ class GLEM(GSgnnNodeModelBase):
             encode_embs = self.lm.comput_input_embed(input_nodes, node_feats)
             target_ntype = list(encode_embs.keys())[0]
             # GNN message passing
-            encode_embs_gnn = self.gnn.gnn_encoder.forward(blocks, encode_embs)
+            encode_embs_gnn = self.gnn.gnn_encoder(blocks, encode_embs)
             n_seed_nodes = blocks[-1].num_dst_nodes()
             return encode_embs[target_ntype][:n_seed_nodes], encode_embs_gnn[target_ntype]
         else:
             # Get the projected LM embeddings for seed nodes:
             seed_nodes = self._get_seed_nodes(input_nodes, blocks)
             encode_embs = self.lm.comput_input_embed(seed_nodes, node_feats)
+            target_ntype = list(encode_embs.keys())[0]
             return encode_embs[target_ntype], None
 
     def _process_labels(self, labels):

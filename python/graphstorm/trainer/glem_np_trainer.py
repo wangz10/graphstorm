@@ -97,6 +97,7 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         device = model.device
         data = train_loader.data
 
+        no_pl = freeze_input_layer_epochs > 0 # turn off pl loss in the epochs when LM is frozen
         if freeze_input_layer_epochs > 0:
             self._model.lm.freeze_input_encoder(data)
             # print('#### Before epoch loop:')
@@ -113,21 +114,22 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         for epoch in range(num_epochs):
             t0 = time.time()
             rt_profiler.start_record()
-
+                        
             if freeze_input_layer_epochs <= epoch:
                 self._model.lm.unfreeze_input_encoder()
-                # 1st round: train LM, fix gnn
-                use_gnn = False
-                self._model.toggle('lm')
-                # print('#### After _model.toggle(lm) call')
-                # self._model._report_parameters()
-                self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
-                                    device, rt_profiler,
-                                    epoch, total_steps, use_mini_batch_infer,
-                                    save_model_path, save_model_frequency)
-                # lm_finish_time = time.time()
-                # if self.rank == 0:
-                #     print("Epoch {}, lm takes {}".format(epoch, lm_finish_time-t0))
+                no_pl = False
+            # 1st round: train LM, fix gnn
+            use_gnn = False
+            self._model.toggle('lm')
+            # print('#### After _model.toggle(lm) call')
+            # self._model._report_parameters()
+            self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
+                                device, rt_profiler,
+                                epoch, total_steps, use_mini_batch_infer,
+                                save_model_path, save_model_frequency, no_pl)
+            lm_finish_time = time.time()
+            if self.rank == 0:
+                print("Epoch {}, lm takes {:.2f} seconds".format(epoch, lm_finish_time-t0))
 
             # 2nd round: train GNN, fix LM
             use_gnn = True
@@ -137,15 +139,15 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
                                 device, rt_profiler,
                                 epoch, total_steps, use_mini_batch_infer,
-                                save_model_path, save_model_frequency)
+                                save_model_path, save_model_frequency, no_pl)
 
             # early_stop, exit training
             if self.early_stop is True:
                 break
 
             epoch_time = time.time() - t0
-            # if self.rank == 0:
-            #     print("Epoch {}, gnn takes {}".format(epoch, time.time() - lm_finish_time))
+            if self.rank == 0:
+                print("Epoch {}, gnn takes {:.2f} seconds".format(epoch, time.time() - lm_finish_time))
             dur.append(epoch_time)
 
         rt_profiler.save_profile()
@@ -165,7 +167,7 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                        epoch, total_steps,
                        use_mini_batch_infer=True,
                        save_model_path=None,
-                       save_model_frequency=-1):
+                       save_model_frequency=-1, no_pl=False):
         """Fit model for one epoch
         """
         profiler.start_record()
@@ -179,10 +181,11 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                 input_nodes = {g.ntypes[0]: input_nodes}
             input_feats = data.get_node_feats(input_nodes, device)
             lbl = data.get_labels(seeds, device)
-            # target_ntype = list(lbl.keys())[0]
-            # n_dst_nodes = seeds[target_ntype].size(0)
-            # assert th.equal(seeds[target_ntype], input_nodes[target_ntype][:n_dst_nodes]), \
-            #     "the first part of input_nodes are not seeds!"
+            target_ntype = list(lbl.keys())[0]
+            n_dst_nodes = seeds[target_ntype].size(0)
+            assert n_dst_nodes == blocks[-1].num_dst_nodes()
+            assert th.equal(seeds[target_ntype], input_nodes[target_ntype][:n_dst_nodes]), \
+                "the first part of input_nodes are not seeds!"
             profiler.record('train_node_feats')
 
             blocks = [block.to(device) for block in blocks]
@@ -190,9 +193,10 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                 num_input_nodes += feats.shape[0]
             profiler.record('train_graph2GPU')
             # Run forward function to compute loss:
-            loss = model.module(blocks, input_feats, None, lbl, input_nodes, use_gnn=use_gnn)
+            loss = model(blocks, input_feats, None, lbl, input_nodes, use_gnn=use_gnn, no_pl=no_pl)
             profiler.record('train_forward')
 
+            self.optimizer.zero_grad() # this is the bug fix
             loss.backward()
             profiler.record('train_backward')
             self.optimizer.step()

@@ -10,12 +10,11 @@ lm_model:
         - node
 gsf:
   basic:
-    model_encoder_type: rgcn
     graph_name: ogbn-arxiv
     backend: gloo
     ip_config: ip_list.txt
     part_config: /data/ogbn-arxiv-1p/ogbn-arxiv.json
-    verbose: false
+    verbose: true
   lm: 
     lm_train_nodes: 10
     lm_infer_batch_size: 32
@@ -23,11 +22,13 @@ gsf:
     glem:
       em_order_gnn_first: true
       inference_using_gnn: true
+      pl_weight: 0.5
   gnn:
+    model_encoder_type: rgcn
     fanout: "15,10"
     num_layers: 2
     hidden_size: 128
-    use_mini_batch_infer: false
+    use_mini_batch_infer: true
   input:
     restore_model_path: null
   output:
