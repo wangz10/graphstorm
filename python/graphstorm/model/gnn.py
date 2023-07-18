@@ -18,9 +18,11 @@
 
 import abc
 import time
+from functools import partial
 import torch as th
 import dgl
 from torch import nn
+from torch.optim.lr_scheduler import LambdaLR
 
 from .utils import load_model as load_gsgnn_model
 from .utils import save_model as save_gsgnn_model
@@ -129,6 +131,11 @@ class GSOptimizer():
                 for k, v in state.items():
                     if isinstance(v, th.Tensor):
                         state[k] = v.to(device)
+
+def _get_linear_schedule_with_warmup_lr_lambda(current_step: int, *, num_warmup_steps: int, num_training_steps: int):
+    if current_step < num_warmup_steps:
+        return float(current_step) / float(max(1, num_warmup_steps))
+    return max(0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps)))
 
 class GSgnnModelBase(nn.Module):
     """ GraphStorm GNN model base class
@@ -504,6 +511,14 @@ class GSgnnModel(GSgnnModelBase):    # pylint: disable=abstract-method
         """the optimizer
         """
         return self._optimizer
+
+    def init_scheduler(self, num_warmup_steps, num_training_steps, last_epoch=-1):
+        lr_lambda = partial(
+            _get_linear_schedule_with_warmup_lr_lambda,
+            num_warmup_steps=num_warmup_steps,
+            num_training_steps=num_training_steps,
+        )
+        self._scheduler = LambdaLR(self._optimizer.lm_opts[0], lr_lambda, last_epoch)
 
     def comput_input_embed(self, input_nodes, input_feats):
         """ Compute input encoder embedding on a minibatch

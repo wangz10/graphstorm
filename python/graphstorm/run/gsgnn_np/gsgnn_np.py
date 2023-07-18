@@ -67,6 +67,14 @@ def main(config_args):
                                     node_feat_field=config.node_feat_name,
                                     label_field=config.label_field)
     model = gs.create_builtin_node_gnn_model(train_data.g, config, train_task=True)
+
+    if config.warmup_epochs > 0:
+        num_train_nodes = train_data.train_idxs['node'].size(0)
+        warmup_steps = config.warmup_epochs * (num_train_nodes // config.batch_size)
+        num_training_steps = config.num_epochs * (num_train_nodes // config.batch_size)
+        model.init_scheduler(warmup_steps, num_training_steps)
+        print('Scheduler set:', model._scheduler)
+
     if config.training_method["name"] == "glem":
         trainer_class = GLEMNodePredictionTrainer
     elif config.training_method["name"] == "default":

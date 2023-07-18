@@ -139,6 +139,7 @@ class GSgnnNodePredictionTrainer(GSgnnTrainer):
                 loss.backward()
                 rt_profiler.record('train_backward')
                 self.optimizer.step()
+                self.scheduler.step()
                 rt_profiler.record('train_step')
 
                 self.log_metric("Train loss", loss.item(), total_steps)

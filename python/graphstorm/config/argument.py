@@ -778,6 +778,12 @@ class GSConfig:
         return self._batch_size
 
     @property
+    def warmup_epochs(self):
+        """ warmup epochs
+        """
+        return self._warmup_epochs
+
+    @property
     def sparse_optimizer_lr(self): # pylint: disable=invalid-name
         """ Sparse optimizer learning rate
         """
@@ -1638,6 +1644,8 @@ def _add_hyperparam_args(parser):
             help="learning rate")
     group.add_argument("-e", "--num-epochs", type=int, default=argparse.SUPPRESS,
             help="number of training epochs")
+    group.add_argument("-w", "--warmup-epochs", type=float, default=argparse.SUPPRESS,
+            help="number of warmup training epochs")
     group.add_argument("--batch-size", type=int, default=argparse.SUPPRESS,
             help="Mini-batch size. Must be larger than 0")
     group.add_argument("--sparse-optimizer-lr", type=float, default=argparse.SUPPRESS,

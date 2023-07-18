@@ -49,6 +49,7 @@ class GSgnnTrainer():
                         + "Convert it to GSOptimizer.")
             optimizer = GSOptimizer([optimizer])
         self._optimizer = optimizer
+        self.scheduler = model._scheduler
         self._rank = rank
         self._dev_id = -1
         self._evaluator = None
