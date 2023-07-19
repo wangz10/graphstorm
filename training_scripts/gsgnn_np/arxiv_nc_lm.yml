@@ -6,6 +6,7 @@ lm_model:
       lm_type: bert
       model_name: "bert-base-uncased"
       gradient_checkpoint: true
+      attention_probs_dropout_prob: 0.1
       node_types:
         - node
 gsf:
