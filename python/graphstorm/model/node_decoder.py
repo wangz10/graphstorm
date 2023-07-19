@@ -43,9 +43,10 @@ class EntityClassifier(GSLayer):
         self._in_dim = in_dim
         self._num_classes = num_classes
         self._multilabel = multilabel
-        self.decoder = nn.Parameter(th.Tensor(in_dim, num_classes))
-        nn.init.xavier_uniform_(self.decoder,
-                                gain=nn.init.calculate_gain('relu'))
+        # self.decoder = nn.Parameter(th.Tensor(in_dim, num_classes))
+        self.decoder = nn.Linear(in_dim, num_classes, bias=True)
+        # nn.init.xavier_uniform_(self.decoder,
+        #                         gain=nn.init.calculate_gain('relu'))
         # TODO(zhengda): The dropout is not used here.
         self.dropout = nn.Dropout(dropout)
 
@@ -61,7 +62,8 @@ class EntityClassifier(GSLayer):
         -------
         Tensor : the logits
         '''
-        return th.matmul(inputs, self.decoder)
+        # return th.matmul(inputs, self.decoder)
+        return self.decoder(self.dropout(inputs))
 
     def predict(self, inputs):
         """ Make prediction on input data.
@@ -75,7 +77,8 @@ class EntityClassifier(GSLayer):
         -------
         Tensor : maximum of the predicted results
         """
-        logits = th.matmul(inputs, self.decoder)
+        # logits = th.matmul(inputs, self.decoder)
+        logits = self.decoder(self.dropout(inputs))
         return (th.sigmoid(logits) > .5).long() if self._multilabel else logits.argmax(dim=1)
 
     def predict_proba(self, inputs):
@@ -90,7 +93,8 @@ class EntityClassifier(GSLayer):
         -------
         Tensor : all normalized predicted results
         """
-        logits = th.matmul(inputs, self.decoder)
+        # logits = th.matmul(inputs, self.decoder)
+        logits = self.decoder(self.dropout(inputs))
         return th.sigmoid(logits) if self._multilabel else th.softmax(logits, 1)
 
     @property
