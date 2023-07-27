@@ -25,6 +25,7 @@ gsf:
         em_order_gnn_first: false
         inference_using_gnn: true
         pl_weight: 0.8
+        num_pretrain_epochs: 0
   gnn:
     model_encoder_type: rgcn
     fanout: "15,10"
