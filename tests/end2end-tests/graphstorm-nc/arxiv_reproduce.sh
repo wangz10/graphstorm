@@ -14,8 +14,108 @@ cp ip_list.txt /tmp/ogbn-arxiv-nc
 # commands from GLEM repo: https://github.com/AndyJZhao/GLEM/tree/main/OGB/ogbn-arxiv
 # arxiv FtV1 Roberta-large
 # --lr=1e-05 --eq_batch_size=36 --weight_decay=0.01 --dropout=0.1 --att_dropout=0.1 --cla_dropout=0.1 --cla_bias=T --epochs=4 --warmup_epochs=0.2 --eval_patience=5000
+# arxiv FtV1 Deberta-large
+# --lr=2e-05 --eq_batch_size=72  --dropout=0.1 --att_dropout=0.1 --cla_dropout=0.1 --cla_bias=T --epochs=4 --warmup_epochs=1 --eval_patience=50000
 
 python src/models/GLEM/trainGLEM.py --dataset=arxiv_TA --em_order=LM-first --gnn_ckpt=RevGAT --gnn_early_stop=300 --gnn_epochs=2000 --gnn_input_norm=T --gnn_label_input=F --gnn_model=RevGAT --gnn_pl_ratio=1 --gnn_pl_weight=0.05 --inf_n_epochs=2 --inf_tr_n_nodes=100000 --lm_ce_reduction=mean --lm_cla_dropout=0.4 --lm_epochs=3 --lm_eq_batch_size=30 --lm_eval_patience=30460 --lm_init_ckpt=None --lm_label_smoothing_factor=0 --lm_load_best_model_at_end=T --lm_lr=2e-05 --lm_model=Deberta --lm_pl_ratio=1 --lm_pl_weight=0.8 --pseudo_temp=0.2  --gpus=0 
+
+## static BERT
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/static_bert_only \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/static_bert_only \
+            --lm-encoder-only \
+            --batch-size 1024 \
+            --lr 0.001 \
+            --lm-train-nodes 0 \
+            --num-epochs 100 \
+            --warmup-epochs 0
+
+# add bias to EntityClassifier
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias \
+            --lm-encoder-only \
+            --batch-size 1024 \
+            --lr 0.001 \
+            --lm-train-nodes 0 \
+            --num-epochs 100 \
+            --warmup-epochs 0
+
+# Add bias to EntityClassifier, clf dropout=0.1; attention_probs_dropout_prob=0.1
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias \
+            --lm-encoder-only \
+            --batch-size 1024 \
+            --lr 0.001 \
+            --lm-train-nodes 0 \
+            --num-epochs 100 \
+            --warmup-epochs 0 \
+            --dropout 0.1
+
+# warmstart BERT ft
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --lm-encoder-only \
+            --batch-size 36 \
+            --lm-train-nodes 36 \
+            --lr 0.000001 \
+            --lm-tune-lr 0.000001 \
+            --warmup-epochs 1 \
+            --dropout 0.1 \
+            --restore-model-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias/epoch-98 \
+            --restore-optimizer-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias/epoch-98 \
+            --num-epochs 10
+
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --lm-encoder-only \
+            --batch-size 36 \
+            --lm-train-nodes 36 \
+            --lr 0.00001 \
+            --lm-tune-lr 0.00001 \
+            --warmup-epochs 0.2 \
+            --dropout 0.1 \
+            --restore-model-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias/epoch-98 \
+            --restore-optimizer-path /data/ogbn-arxiv-nc/models/static_bert_only_clabias/epoch-98 \
+            --num-epochs 10
 
 # BERT ft
 python3 -m graphstorm.run.gs_node_classification \
@@ -34,6 +134,70 @@ python3 -m graphstorm.run.gs_node_classification \
             --lr 0.00002 \
             --lm-tune-lr 0.00002 \
             --num-epochs 10
+
+### with cla bias; dropout att_dropout and warmup
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/bert_only_clabias \
+            --lm-encoder-only \
+            --batch-size 36 \
+            --lm-train-nodes 36 \
+            --lr 0.00001 \
+            --lm-tune-lr 0.00001 \
+            --warmup-epochs 0.2 \
+            --dropout 0.1 \
+            --num-epochs 10
+
+# bert-large
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_bert_large.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias \
+            --lm-encoder-only \
+            --batch-size 36 \
+            --lm-train-nodes 36 \
+            --lr 0.00001 \
+            --lm-tune-lr 0.00001 \
+            --warmup-epochs 1 \
+            --dropout 0.1 \
+            --num-epochs 4
+
+# bert-large continued:
+# OOM when loading optimzer
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /data/ogbn_arxiv_nc_train_val_1p_8t/arxiv_nc_bert_large.yml \
+            --save-model-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias \
+            --save-perf-results-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias \
+            --lm-encoder-only \
+            --batch-size 36 \
+            --lm-train-nodes 36 \
+            --lr 0.00001 \
+            --lm-tune-lr 0.00001 \
+            --warmup-epochs 0 \
+            --dropout 0.1 \
+            --num-epochs 4 \
+            --restore-model-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias/epoch-3 \
+            --restore-optimizer-path /data/ogbn-arxiv-nc/models/bert_large_only_clabias/epoch-3
+
 
 ### with weight decay
 python3 -m graphstorm.run.gs_node_classification \
@@ -108,6 +272,66 @@ python3 -m graphstorm.run.gs_node_classification \
             --lm-tune-lr 0.00002 \
             --lr 0.00002 --batch-size 32 \
             --semi-supervised true
+
+# with cla bias, dropout 
+## OOM at begining of fitting epoch 1
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_glem.yml \
+            --save-model-path /data/ogbn_arxiv_nc_train_val_1p_8t/glem_nofreeze/models \
+            --save-perf-results-path /data/ogbn_arxiv_nc_train_val_1p_8t/glem_nofreeze/models \
+            --num-epochs 10 \
+            --lm-tune-lr 0.00001 \
+            --lr 0.00001 --batch-size 36 \
+            --lm-train-nodes 36 \
+            --dropout 0.1 \
+            --warmup-epochs 0 \
+            --semi-supervised true
+
+## no_pl in the first 2 epochs for semisup
+## OOM at begining of fitting epoch 3 -> glem_error3.log
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_glem.yml \
+            --save-model-path /data/ogbn_arxiv_nc_train_val_1p_8t/glem_nofreeze/models \
+            --save-perf-results-path /data/ogbn_arxiv_nc_train_val_1p_8t/glem_nofreeze/models \
+            --num-epochs 10 \
+            --lm-tune-lr 0.00001 \
+            --lr 0.00001 --batch-size 36 \
+            --lm-train-nodes 10 \
+            --dropout 0.1 \
+            --warmup-epochs 0 \
+            --semi-supervised true
+
+
+## BERT ft with gnn
+### Try to see if this cause OOM -> worked fine
+python3 -m graphstorm.run.gs_node_classification \
+            --num-trainers 8 \
+            --num-servers 1 \
+            --num-samplers 0 \
+            --part-config /data/ogbn_arxiv_nc_train_val_1p_8t/ogbn-arxiv.json \
+            --ip-config ip_list.txt \
+            --ssh-port 2222 \
+            --cf /develop/graphstorm/training_scripts/gsgnn_np/arxiv_nc_lm.yml \
+            --save-model-path /data/ogbn_arxiv_nc_train_val_1p_8t/bert_gnn/models \
+            --save-perf-results-path /data/ogbn_arxiv_nc_train_val_1p_8t/bert_gnn/models \
+            --num-epochs 10 \
+            --lm-tune-lr 0.00001 \
+            --lr 0.00001 --batch-size 36 \
+            --lm-train-nodes 12 \
+            --dropout 0.1 \
+            --warmup-epochs 0
 
 ### Load pre-trained -> not supported
 python3 -m graphstorm.run.gs_node_classification \

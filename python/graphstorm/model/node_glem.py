@@ -16,11 +16,14 @@
     GLEM model for node prediction task in GraphStorm.
 """
 import os
+from functools import partial
 from copy import deepcopy
 import torch as th
 import dgl
+from torch.optim.lr_scheduler import LambdaLR
 
-from .gnn import GSOptimizer
+
+from .gnn import GSOptimizer, _get_linear_schedule_with_warmup_lr_lambda
 from .node_gnn import GSgnnNodeModel, GSgnnNodeModelBase
 
 class GLEM(GSgnnNodeModelBase):
@@ -85,6 +88,14 @@ class GLEM(GSgnnNodeModelBase):
     def create_optimizer(self):
         """Create the optimizer that optimizes the model."""
         return self._optimizer
+
+    def init_scheduler(self, num_warmup_steps, num_training_steps, last_epoch=-1):
+        lr_lambda = partial(
+            _get_linear_schedule_with_warmup_lr_lambda,
+            num_warmup_steps=num_warmup_steps,
+            num_training_steps=num_training_steps,
+        )
+        self._scheduler = LambdaLR(self._optimizer.lm_opts[0], lr_lambda, last_epoch)
 
     def save_model(self, model_path):
         """Save either the LM and GNN models.
@@ -176,7 +187,7 @@ class GLEM(GSgnnNodeModelBase):
         no_pl : bool
             If True, do not calculate pseudo likelihood, use MLE loss only
         """
-        if blocks_u is None:
+        if blocks_u is None or no_pl:
             # no unlabeled data provided
             if use_gnn:
                 total_loss = self.forward_gnn(blocks, node_feats, edge_feats, labels, input_nodes,

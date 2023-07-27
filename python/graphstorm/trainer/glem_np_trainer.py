@@ -193,7 +193,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             total_steps += 1
             batch_tic = time.time()
             # Run forward function to compute loss:
-            loss = model(blocks, input_feats, None, lbl, input_nodes, use_gnn=use_gnn, no_pl=no_pl,
+            loss = model(blocks, input_feats, None, lbl, input_nodes, use_gnn=use_gnn,
+                         no_pl=no_pl or (epoch <= 2),
                          blocks_u=blocks_u, node_feats_u=input_feats_u, edge_feats_u=None,
                          input_nodes_u=input_nodes_u)
             profiler.record('train_forward')
@@ -202,6 +203,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             loss.backward()
             profiler.record('train_backward')
             self.optimizer.step()
+            if hasattr(self, 'scheduler'):
+                self.scheduler.step()
             profiler.record('train_step')
 
             self.log_metric("Train loss", loss.item(), total_steps)
