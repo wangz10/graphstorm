@@ -190,7 +190,11 @@ def node_mini_batch_gnn_predict(model, loader, return_proba=True, return_label=F
                 to_dict[k] = [v.cpu()]
 
     with th.no_grad():
+        i = 0
         for input_nodes, seeds, blocks in loader:
+            if i % 5 == 0:
+                print('Inference batch', i)
+            i += 1
             if not isinstance(input_nodes, dict):
                 assert len(g.ntypes) == 1
                 input_nodes = {g.ntypes[0]: input_nodes}

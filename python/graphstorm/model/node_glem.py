@@ -361,7 +361,7 @@ class GLEM(GSgnnNodeModelBase):
         n_seed_nodes = blocks[-1].num_dst_nodes()
         return {target_ntype: input_nodes[target_ntype][:n_seed_nodes]}
 
-    def _embed_nodes(self, blocks, node_feats, _, input_nodes=None, do_gnn_encode=True, target_ntype=None):
+    def _embed_nodes(self, blocks, node_feats, _, input_nodes=None, do_gnn_encode=True):
         """ Embed and encode nodes with LM, optionally followed by GNN encoder for GLEM model
         """
         if do_gnn_encode:

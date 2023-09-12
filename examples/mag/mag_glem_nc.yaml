@@ -20,8 +20,8 @@ gsf:
     verbose: false
     save_perf_results_path: null
   lmgnn:
-    lm_train_nodes: 32
-    lm_infer_batch_size: 32
+    lm_train_nodes: 128
+    lm_infer_batch_size: 128
     freeze_lm_encoder_epochs: 0
     model_encoder_type: rgcn
     fanout: "5,5"
@@ -31,8 +31,8 @@ gsf:
     training_method:
       name: glem
       kwargs:
-        em_order_gnn_first: true
-        inference_using_gnn: true
+        em_order_gnn_first: false
+        inference_using_gnn: false
         pl_weight: 0.8
         num_pretrain_epochs: 1
   input:
@@ -46,10 +46,10 @@ gsf:
     lm_tune_lr: 0.00003
     sparse_optimizer_lr: 0.01
     num_epochs: 3
-    batch_size: 32
+    batch_size: 128
     # eval_fanout: "20,20"
-    eval_batch_size: 1024
-    lm_infer_batch_size: 1024
+    eval_batch_size: 128
+    lm_infer_batch_size: 32
     wd_l2norm: 0
     no_validation: false
     eval_frequency: 500

@@ -89,12 +89,13 @@ def main(config_args):
         tracker.log_params(config.__dict__)
     trainer.setup_task_tracker(tracker)
     if config.use_pseudolabel:
-        # Use nodes not in train_idxs as unlabeled node sets
+        print('Use nodes not in train_idxs as unlabeled node sets')
         unlabeled_idxs = train_data.get_unlabeled_idxs()
         # semi-supervised loader
         dataloader = GSgnnNodeSemiSupDataLoader(train_data, train_data.train_idxs, unlabeled_idxs,
                                                 fanout=config.fanout, batch_size=config.batch_size,
                                                 device=device, train_task=True)
+        print('finished building GSgnnNodeSemiSupDataLoader')
     else:
         dataloader = GSgnnNodeDataLoader(train_data, train_data.train_idxs, fanout=config.fanout,
                                          batch_size=config.batch_size,
