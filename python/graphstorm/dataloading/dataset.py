@@ -575,9 +575,6 @@ class GSgnnNodeData(GSgnnData):  # pylint: disable=abstract-method
         """test set's indexes"""
         return self._test_idxs
 
-def init_func(shape, dtype):
-    return th.ones(shape, dtype=dtype)
-
 class GSgnnNodeTrainData(GSgnnNodeData):
     """ Training data for node tasks
 
@@ -679,8 +676,7 @@ class GSgnnNodeTrainData(GSgnnNodeData):
         unlabeled_idxs = {}
         num_unlabeled = 0
         for ntype in self.train_ntypes:
-            print('ntype:', ntype)
-            unlabeled_mask = flip_node_mask(g.nodes[ntype].data['train_mask']) # this function causes the OOM
+            unlabeled_mask = flip_node_mask(g.nodes[ntype].data['train_mask'], self._train_idxs[ntype])
             if 'trainer_id' in g.nodes[ntype].data:
                 node_trainer_ids = g.nodes[ntype].data['trainer_id']
                 unlabeled_idx = dgl.distributed.node_split(unlabeled_mask,
@@ -692,7 +688,6 @@ class GSgnnNodeTrainData(GSgnnNodeData):
             assert unlabeled_idx is not None, "There is no training data."
             num_unlabeled += len(unlabeled_idx)
             unlabeled_idxs[ntype] = unlabeled_idx
-            logging.info('part %d, ntype: %s unlabeled: %d', get_rank(), ntype, len(unlabeled_idx))
         logging.info('part %d, unlabeled: %d', get_rank(), num_unlabeled)
         return unlabeled_idxs
 

@@ -16,10 +16,7 @@
     Utils for data loading.
 """
 
-# from copy import deepcopy
 import logging
-
-import dgl
 import torch as th
 import torch.distributed as dist
 
@@ -114,10 +111,7 @@ def modify_fanout_for_target_etype(g, fanout, target_etypes):
         edge_fanout_lis.append(edge_fanout_dic)
     return edge_fanout_lis
 
-def init_func(shape, dtype):
-    return th.ones(shape, dtype=dtype)
-
-def flip_node_mask(dist_tensor):
+def flip_node_mask(dist_tensor, indices):
     """ Flip the node mask (0->1; 1->0) and return a flipped mask.
         This is equivalent to the `~` operator for boolean tensors. 
         
@@ -125,13 +119,12 @@ def flip_node_mask(dist_tensor):
         ----------
         dist_tensor: dgl.distributed.DistTensor
             The input mask
-
+        indices: torch.Tensor
+            The vector node IDs that belong to the local rank
         Returns
         -------
-        flipped mask: dgl.distributed.DistTensor
+        flipped mask: torch.Tensor
     """
-    # flipped_dist_tensor = deepcopy(dist_tensor)
-    flipped_dist_tensor = dgl.distributed.DistTensor(dist_tensor.shape, dist_tensor.dtype, init_func=init_func)
-    for idx in range(dist_tensor.shape[0]):
-        flipped_dist_tensor[idx] = 1 - flipped_dist_tensor[idx]
+    flipped_dist_tensor = th.ones(dist_tensor.shape, dtype=dist_tensor.dtype)
+    flipped_dist_tensor[indices] = 1 - dist_tensor[indices]
     return flipped_dist_tensor
