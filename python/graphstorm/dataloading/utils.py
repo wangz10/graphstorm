@@ -17,6 +17,7 @@
 """
 
 import logging
+import dgl
 import torch as th
 import torch.distributed as dist
 
@@ -111,10 +112,15 @@ def modify_fanout_for_target_etype(g, fanout, target_etypes):
         edge_fanout_lis.append(edge_fanout_dic)
     return edge_fanout_lis
 
+def _init_func(shape, dtype):
+    """Initialize function for DistTensor
+    """
+    return th.ones(shape, dtype=dtype)
+
 def flip_node_mask(dist_tensor, indices):
     """ Flip the node mask (0->1; 1->0) and return a flipped mask.
-        This is equivalent to the `~` operator for boolean tensors. 
-        
+        This is equivalent to the `~` operator for boolean tensors.
+
         Parameters
         ----------
         dist_tensor: dgl.distributed.DistTensor
@@ -125,6 +131,7 @@ def flip_node_mask(dist_tensor, indices):
         -------
         flipped mask: torch.Tensor
     """
-    flipped_dist_tensor = th.ones(dist_tensor.shape, dtype=dist_tensor.dtype)
+    flipped_dist_tensor = dgl.distributed.DistTensor(
+        dist_tensor.shape, dist_tensor.dtype, init_func=_init_func)
     flipped_dist_tensor[indices] = 1 - dist_tensor[indices]
     return flipped_dist_tensor

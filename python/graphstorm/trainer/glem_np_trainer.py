@@ -23,11 +23,13 @@ from torch.nn.parallel import DistributedDataParallel
 
 from ..model.node_gnn import GSgnnNodeModelInterface
 from ..model.node_glem import GLEM
-from ..model.gnn import GSgnnModel
 from .np_trainer import GSgnnNodePredictionTrainer
+from ..model.node_gnn import node_mini_batch_gnn_predict, node_mini_batch_predict
+from ..model.node_gnn import GSgnnNodeModelInterface
+from ..model.gnn import do_full_graph_inference
 
 from ..utils import sys_tracker, rt_profiler, print_mem
-from ..utils import barrier
+from ..utils import barrier, is_distributed, get_backend
 from ..dataloading import GSgnnNodeSemiSupDataLoader
 
 class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
@@ -96,8 +98,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             assert val_loader is not None, \
                     "The evaluator is provided but validation set is not provided."
         if not use_mini_batch_infer:
-            assert isinstance(self._model, GSgnnModel), \
-                    "Only GSgnnModel supports full-graph inference."
+            assert self._model.inference_using_gnn, \
+                "GLEM with inference_using_gnn supports full-graph inference."
 
         # computation graph will be changed during training.
         on_cpu = self.device == th.device('cpu')
@@ -265,3 +267,83 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         # depends on the setting of top k. To show this is after epoch save, set the iteration
         # to be None, so that we can have a determistic model folder name for testing and debug.
         self.save_topk_models(model, epoch, None, val_score, save_model_path)
+
+    def eval(self, model, val_loader, test_loader, use_mini_batch_infer, total_steps,
+             return_proba=True):
+        """ do the model evaluation using validiation and test sets
+
+        Parameters
+        ----------
+        model : Pytorch model
+            The GNN model.
+        val_loader: GSNodeDataLoader
+            The dataloader for validation data
+        test_loader : GSNodeDataLoader
+            The dataloader for test data.
+        total_steps: int
+            Total number of iterations.
+        return_proba: bool
+            Whether to return all the predictions or the maximum prediction.
+
+        Returns
+        -------
+        float: validation score
+        """
+        teval = time.time()
+        sys_tracker.check('before prediction')
+        if use_mini_batch_infer:
+            val_pred, _, val_label = node_mini_batch_gnn_predict(model, val_loader, return_proba,
+                                                                 return_label=True)
+            sys_tracker.check('after_val_score')
+            if test_loader is not None:
+                test_pred, _, test_label = \
+                    node_mini_batch_gnn_predict(model, test_loader, return_proba,
+                                                return_label=True)
+            else: # there is no test set
+                test_pred = None
+                test_label = None
+            sys_tracker.check('after_test_score')
+        else:
+            embedding_model = model.lm
+            decoding_model = model.gnn
+            emb = do_full_graph_inference(embedding_model, val_loader.data, fanout=val_loader.fanout,
+                                          task_tracker=self.task_tracker)
+            sys_tracker.check('after_full_infer')
+            val_pred, val_label = node_mini_batch_predict(decoding_model, emb, val_loader, return_proba,
+                                                          return_label=True)
+            sys_tracker.check('after_val_score')
+            if test_loader is not None:
+                test_pred, test_label = \
+                    node_mini_batch_predict(decoding_model, emb, test_loader, return_proba,
+                                            return_label=True)
+            else:
+                # there is no test set
+                test_pred = None
+                test_label = None
+            sys_tracker.check('after_test_score')
+        sys_tracker.check('predict')
+
+        # TODO(wlcong) we only support node prediction on one node type for evaluation now
+        assert len(val_label) == 1, "We only support prediction on one node type for now."
+        ntype = list(val_label.keys())[0]
+        # We need to have val and label (test and test label) data in GPU
+        # when backend is nccl, as we need to use nccl.all_reduce to exchange
+        # data between GPUs
+        val_pred = val_pred[ntype].to(self.device) \
+            if is_distributed() and get_backend() == "nccl" else val_pred[ntype]
+        val_label = val_label[ntype].to(self.device) \
+            if is_distributed() and get_backend() == "nccl" else val_label[ntype]
+        if test_pred is not None:
+            test_pred = test_pred[ntype].to(self.device) \
+                if is_distributed() and get_backend() == "nccl" else test_pred[ntype]
+            test_label = test_label[ntype].to(self.device) \
+                if is_distributed() and get_backend() == "nccl" else test_label[ntype]
+        val_score, test_score = self.evaluator.evaluate(val_pred, test_pred,
+                                                        val_label, test_label, total_steps)
+        sys_tracker.check('evaluate')
+        if self.rank == 0:
+            self.log_print_metrics(val_score=val_score,
+                                    test_score=test_score,
+                                    dur_eval=time.time() - teval,
+                                    total_steps=total_steps)
+        return val_score
