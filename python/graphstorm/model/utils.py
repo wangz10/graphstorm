@@ -517,7 +517,7 @@ def load_model(model_path, gnn_model=None, embed_layer=None, decoder=None):
     if 'embed' in checkpoint and embed_layer is not None:
         embed_layer.load_state_dict(checkpoint['embed'], strict=False)
     if 'decoder' in checkpoint and decoder is not None:
-        decoder.load_state_dict(checkpoint['decoder'])
+        decoder.load_state_dict(checkpoint['decoder'], strict=False)
 
 def load_sparse_embeds(model_path, embed_layer, local_rank, world_size):
     """load sparse embeddings if any
