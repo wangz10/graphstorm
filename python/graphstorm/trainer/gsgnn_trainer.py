@@ -309,8 +309,8 @@ class GSgnnTrainer():
         # we do not load optimizer states as the model states of
         # two models (pre-training and fine-tuning) are not 100%
         # compatible.
-        if model_layer_to_load == GRAPHSTORM_MODEL_ALL_LAYERS:
-            self._optimizer.load_opt_state(model_path, self._model.device)
+        # if model_layer_to_load == GRAPHSTORM_MODEL_ALL_LAYERS:
+        #     self._optimizer.load_opt_state(model_path, self._model.device)
 
     @property
     def evaluator(self):
