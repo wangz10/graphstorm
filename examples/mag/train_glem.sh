@@ -1,8 +1,24 @@
 #!/bin/bash
-cd /develop/graphstorm
-DGL_HOME=/root/dgl
-GS_HOME=$(pwd)
-export PYTHONPATH=$GS_HOME/python/
+
+## Set up docker:
+
+# Start a docker, mapping dev code bases into its volume
+# and set env vars
+nvidia-docker run \
+    -v /mnt/efs/gsf-data:/data \
+    -v /home/ubuntu/graphstorm:/develop/graphstorm \
+    --network=host \
+    --shm-size=700g \
+    --env DGL_HOME=/root/dgl \
+    --env GS_HOME=/develop/graphstorm \
+    --env PYTHONPATH=/develop/graphstorm/python/ \
+    -d graphstorm:0908
+
+cd $GS_HOME
+# DGL_HOME=/root/dgl
+# GS_HOME=$(pwd)
+# export GS_HOME=/develop/graphstorm
+# export PYTHONPATH=$GS_HOME/python/
 echo "127.0.0.1" > ip_list.txt
 
 python3 -m graphstorm.run.gs_node_classification --workspace $GS_HOME/training_scripts/gsgnn_np/ --num-trainers 8 --num-servers 1 --num-samplers 0 --part-config /data/mag_min_1part3/mag.json --ip-config ip_list.txt --ssh-port 2222 --cf $GS_HOME/examples/mag/mag_glem_nc.yaml --save-model-path /data/mag_min_1part3/glem_nc/ --topk-model-to-save 1 --num-epochs 10 --use-pseudolabel true
@@ -41,6 +57,9 @@ python3 -m graphstorm.run.gs_node_classification --workspace $GS_HOME/training_s
 python3 -m graphstorm.run.gs_node_classification --workspace $GS_HOME/training_scripts/gsgnn_np/ --num-trainers 8 --num-servers 1 --num-samplers 0 --part-config /data/mag_min_1part3/mag.json --ip-config ip_list.txt --ssh-port 2222 --cf $GS_HOME/examples/mag/mag_glem_from_checkpoints.yaml --save-model-path /data/mag_min_1part3/glem_nc_lmfirst_pt5_from_bert_nc_ft_and_gnn/ --topk-model-to-save 1 --num-epochs 50 --use-pseudolabel true --restore-model-path /data/mag_min_1part3/mag_bert_nc_model/ 
 
 python3 -m graphstorm.run.gs_node_classification --workspace $GS_HOME/training_scripts/gsgnn_np/ --num-trainers 8 --num-servers 1 --num-samplers 0 --part-config /data/mag_min_1part3/mag.json --ip-config ip_list.txt --ssh-port 2222 --cf $GS_HOME/examples/mag/mag_glem_from_checkpoints.yaml --save-model-path /data/mag_min_1part3/glem_nc_lmfirst_pt0_from_bert_nc_ft_and_gnn/ --topk-model-to-save 1 --num-epochs 50 --use-pseudolabel true --restore-model-path /data/mag_min_1part3/mag_bert_nc_model/ 
+
+# 4 parts:
+python3 -m graphstorm.run.gs_node_classification --workspace $GS_HOME/training_scripts/gsgnn_np/ --num-trainers 8 --num-servers 4 --num-samplers 0 --part-config /data/mag_min_4parts/mag.json --ip-config /data/ip_list_p4_zw.txt --ssh-port 2222 --cf /data/mag_min_4parts/mag_glem_from_checkpoints_4p.yaml --save-model-path /data/mag_min_4parts/glem_nc_lmfirst_pt5_from_bert_nc_ft_and_gnn/ --topk-model-to-save 1 --num-epochs 50 --use-pseudolabel true --restore-model-path /data/mag_min_1part3/mag_bert_nc_model/ --save-perf-results-path /data/mag_min_4parts/glem_nc_lmfirst_pt5_from_bert_nc_ft_and_gnn
 
 
 ## freeze the LM during pre-training epochs, only train GNN
