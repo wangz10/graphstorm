@@ -64,7 +64,7 @@ class GLEM(GSgnnNodeModelBase):
     def init_optimizer(self, lr, sparse_optimizer_lr, weight_decay, lm_lr=None):
         """Initialize optimzer, which will be stored in self.lm._optimizer, self.gnn._optimizer
         """
-        sparse_params = self.gnn.get_sparse_params()
+        sparse_params = self.lm.get_sparse_params()
         if len(sparse_params) > 0:
             emb_optimizer = dgl.distributed.optim.SparseAdam(sparse_params, lr=sparse_optimizer_lr)
             sparse_opts = [emb_optimizer]
@@ -165,7 +165,7 @@ class GLEM(GSgnnNodeModelBase):
             self.training_lm = False
             self.freeze_params('lm')
             self.unfreeze_params('gnn')
-            self.unfreeze_params('lm-input-proj')
+            # self.unfreeze_params('lm-input-proj')
         else:
             raise ValueError(f"Unknown model part: {part}")
 
