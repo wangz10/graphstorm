@@ -105,8 +105,16 @@ class GLEM(GSgnnNodeModelBase):
 
     def restore_model(self, restore_model_path, model_layer_to_load=None):
         """Restore models from checkpoints."""
-        self.lm.restore_model(os.path.join(restore_model_path, 'LM'), ['embed'])
-        self.gnn.restore_model(os.path.join(restore_model_path, 'GNN'), ['gnn', 'decoder'])
+        lm_path = os.path.join(restore_model_path, 'LM')
+        gnn_path = os.path.join(restore_model_path, 'GNN')
+        if os.path.exists(os.path.join(lm_path, 'model.bin')):
+            self.lm.restore_model(os.path.join(restore_model_path, 'LM'), ['embed'])
+        else:
+            print('Unable to restore LM from', lm_path)
+        if os.path.exists(os.path.join(gnn_path, 'model.bin')):
+            self.gnn.restore_model(os.path.join(restore_model_path, 'GNN'), ['gnn', 'decoder'])
+        else:
+            print('Unable to restore GNN from', gnn_path)
 
     def set_node_input_encoder(self, encoder):
         """Set the node input LM encoder for lm, shared with gnn. 
