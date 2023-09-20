@@ -65,6 +65,7 @@ class GLEM(GSgnnNodeModelBase):
         """Initialize optimzer, which will be stored in self.lm._optimizer, self.gnn._optimizer
         """
         sparse_params = self.lm.get_sparse_params()
+        # lm has sparse params; gnn has no sparse params
         if len(sparse_params) > 0:
             emb_optimizer = dgl.distributed.optim.SparseAdam(sparse_params, lr=sparse_optimizer_lr)
             sparse_opts = [emb_optimizer]
@@ -122,6 +123,11 @@ class GLEM(GSgnnNodeModelBase):
         """Alias for accessing the gnn_encoder"""
         return self.gnn.gnn_encoder
 
+    @property
+    def node_input_encoder(self):
+        """Alias for accessing the node_input_encoder"""
+        return self.lm.node_input_encoder
+    
     def set_decoder(self, decoder):
         """Set the same decoder for both, since lm needs to be able to 
         predict node labels during training
