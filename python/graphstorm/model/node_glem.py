@@ -127,7 +127,11 @@ class GLEM(GSgnnNodeModelBase):
     def node_input_encoder(self):
         """Alias for accessing the node_input_encoder"""
         return self.lm.node_input_encoder
-    
+    @property
+    def decoder(self):
+        """Alias for accessing the decoder"""
+        return self.gnn.decoder if self.inference_using_gnn else self.lm.decoder
+
     def set_decoder(self, decoder):
         """Set the same decoder for both, since lm needs to be able to 
         predict node labels during training
