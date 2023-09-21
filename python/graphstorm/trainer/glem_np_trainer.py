@@ -230,7 +230,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
                 self.evaluator.do_eval(total_steps, epoch_end=False) and \
                 val_loader is not None:
                 val_score = self.eval(model.module, val_loader, test_loader,
-                                        use_mini_batch_infer, total_steps, return_proba=False)
+                                        use_mini_batch_infer, total_steps, return_proba=False,
+                                        use_gnn=use_gnn)
 
                 if self.evaluator.do_early_stop(val_score):
                     self.early_stop = True
@@ -256,7 +257,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         val_score = None
         if self.evaluator is not None and self.evaluator.do_eval(total_steps, epoch_end=True):
             val_score = self.eval(model.module, val_loader, test_loader,
-                                    use_mini_batch_infer, total_steps, return_proba=False)
+                                    use_mini_batch_infer, total_steps, return_proba=False, 
+                                    use_gnn=use_gnn)
             if self.evaluator.do_early_stop(val_score):
                 self.early_stop = True
         # After each epoch, check to save the top k models. If has validation score, will save
@@ -266,7 +268,7 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         self.save_topk_models(model, epoch, None, val_score, save_model_path)
 
     def eval(self, model, val_loader, test_loader, use_mini_batch_infer, total_steps,
-             return_proba=True):
+             return_proba=True, use_gnn=True):
         """ do the model evaluation using validiation and test sets
 
         Parameters
@@ -302,7 +304,7 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             sys_tracker.check('after_test_score')
         else:
             embedding_model = model.lm
-            decoding_model = model.gnn
+            decoding_model = model.gnn if use_gnn else model.lm
             emb = do_full_graph_inference(embedding_model, val_loader.data, fanout=val_loader.fanout,
                                           task_tracker=self.task_tracker)
             sys_tracker.check('after_full_infer')
