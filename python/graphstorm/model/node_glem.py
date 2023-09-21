@@ -135,6 +135,12 @@ class GLEM(GSgnnNodeModelBase):
     def node_input_encoder(self):
         """Alias for accessing the node_input_encoder"""
         return self.lm.node_input_encoder
+    
+    @property
+    def _node_input_encoder(self):
+        """Alias for accessing the node_input_encoder"""
+        return self.lm.node_input_encoder
+
     @property
     def decoder(self):
         """Alias for accessing the decoder"""
