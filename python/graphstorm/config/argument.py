@@ -566,6 +566,7 @@ class GSConfig:
                 glem_defaults = {
                     "em_order_gnn_first": False,
                     "inference_using_gnn": True,
+                    "optimize_sparse": False, 
                     "pl_weight": 0.5,
                     "num_pretrain_epochs": 1
                 }

@@ -47,6 +47,7 @@ class GLEM(GSgnnNodeModelBase):
                  target_ntype,
                  em_order_gnn_first=False,
                  inference_using_gnn=True,
+                 optimize_sparse=False,
                  pl_weight=0.5,
                  num_pretrain_epochs=1
                  ):
@@ -55,6 +56,7 @@ class GLEM(GSgnnNodeModelBase):
         self.target_ntype = target_ntype
         self.em_order_gnn_first = em_order_gnn_first
         self.inference_using_gnn = inference_using_gnn
+        self.optimize_sparse = optimize_sparse
         self.pl_weight = pl_weight
         self.num_pretrain_epochs = num_pretrain_epochs
         self.lm = GSgnnNodeModel(alpha_l2norm)
@@ -64,13 +66,13 @@ class GLEM(GSgnnNodeModelBase):
     def init_optimizer(self, lr, sparse_optimizer_lr, weight_decay, lm_lr=None):
         """Initialize optimzer, which will be stored in self.lm._optimizer, self.gnn._optimizer
         """
-        sparse_params = self.lm.get_sparse_params()
-        # lm has sparse params; gnn has no sparse params
-        if len(sparse_params) > 0:
-            emb_optimizer = dgl.distributed.optim.SparseAdam(sparse_params, lr=sparse_optimizer_lr)
-            sparse_opts = [emb_optimizer]
-        else:
-            sparse_opts = []
+        sparse_opts = []
+        if self.optimize_sparse:
+            sparse_params = self.lm.get_sparse_params()
+            # lm has sparse params; gnn has no sparse params
+            if len(sparse_params) > 0:
+                emb_optimizer = dgl.distributed.optim.SparseAdam(sparse_params, lr=sparse_optimizer_lr)
+                sparse_opts = [emb_optimizer]
 
         dense_params = self.gnn.get_dense_params() + self.lm.get_dense_params()
         if len(dense_params) > 0:
