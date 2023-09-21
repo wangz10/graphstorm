@@ -118,7 +118,25 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
 
         sys_tracker.check('start training')
         g = data.g # dgl.DistGraph
-        for epoch in range(num_epochs):
+        # pretrain
+        # only pretrain one part of the model determined by `em_order_gnn_first`            
+        use_gnn = self._model.em_order_gnn_first
+        part_to_train = 'gnn' if use_gnn else 'lm'
+        self._model.toggle(part_to_train)        
+        for epoch in range(self.num_pretrain_epochs):
+            stage_start_time = time.time()
+            self._fit_one_epoch(use_gnn, model, g, data, train_loader, val_loader, test_loader,
+                                device, rt_profiler,
+                                epoch, total_steps, use_mini_batch_infer,
+                                save_model_path, save_model_frequency, True, max_grad_norm,
+                                grad_norm_type)
+            stage_finish_time = time.time()
+            if self.rank == 0:
+                logging.info("Epoch %d: %s takes %.2f seconds",
+                                epoch, part_to_train, stage_finish_time-stage_start_time)
+        
+        # co-train:
+        for epoch in range(self.num_pretrain_epochs, num_epochs):
             t0 = time.time()
             rt_profiler.start_record()
 
@@ -205,7 +223,7 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
             batch_tic = time.time()
             # Run forward function to compute loss:
             loss = model(blocks, input_feats, None, lbl, input_nodes, use_gnn=use_gnn,
-                         no_pl=no_pl or (epoch < self.num_pretrain_epochs),
+                         no_pl=no_pl,
                          blocks_u=blocks_u, node_feats_u=input_feats_u, edge_feats_u=None,
                          input_nodes_u=input_nodes_u)
             profiler.record('train_forward')
