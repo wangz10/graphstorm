@@ -111,6 +111,8 @@ class GLEMNodePredictionTrainer(GSgnnNodePredictionTrainer):
         no_pl = freeze_input_layer_epochs > 0
         if freeze_input_layer_epochs > 0:
             self._model.lm.freeze_input_encoder(data)
+            # freeze all the LM encoder, train the lm decoder only
+            self._model.freeze_params('lm-encoder')
 
         # training loop
         dur = []

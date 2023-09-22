@@ -167,6 +167,8 @@ class GLEM(GSgnnNodeModelBase):
             params = self.lm.parameters()
         elif part == 'gnn':
             params = self.gnn.parameters()
+        elif part == 'lm-encoder':
+            params = self.lm.node_input_encoder.parameters()
         for param in params:
             param.requires_grad = False
 
