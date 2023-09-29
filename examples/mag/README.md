@@ -116,7 +116,7 @@ python3 -m graphstorm.run.gs_node_classification \
 	--ssh-port 2222 \
 	--cf $GS_HOME/examples/mag/mag_bert_nc.yaml \
 	--save-model-path /data/mag_min_4parts/zw/mag_bert_nc_model
-The accuracy is 50.99%.	
+# The accuracy is 50.99%.	
 ```
 
 The accuracy is 41.88%.
@@ -208,6 +208,7 @@ python3 -m graphstorm.run.gs_node_classification \
 	--restore-model-layers dense_embed \
 	--save-model-path /data/mag_min_4parts/zw/mag_rgcn_model \
 	--topk-model-to-save 1
+# The accuracy is 56.42%.
 ```
 
 The accuracy of RGCN with the BERT model fine-tuned with venue prediction is 63.22%,
@@ -251,4 +252,35 @@ while the accuracy of HGT is 67.20%.
 				--use-pseudolabel true \
 				--restore-model-path mag_pretrained_models \
 				--restore-model-layers embed
+
+	mkdir /data/mag_min_4parts/zw/mag_glem
+	ln -s /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 /data/mag_min_4parts/zw/mag_glem/LM
+	ln -s /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 /data/mag_min_4parts/zw/mag_glem/GNN
+
+	# do an inference to make sure this checkpoint is good:
+python3 -m graphstorm.run.gs_node_classification \
+--num-trainers 8 \
+--num-servers 4 \
+--num-samplers 0 --ssh-port 2222 \
+--part-config /data/mag_min_4parts/mag.json \
+--ip-config /data/ip_list_p4_zw.txt \
+--cf $GS_HOME/examples/mag/mag_gnn_nc.yaml \
+--restore-model-path /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 \
+--inference \
+		--use-mini-batch-infer true
+
+# train glem
+python3 -m graphstorm.run.gs_node_classification \
+	--num-trainers 8 --num-servers 4 --num-samplers 0 \
+	--part-config /data/mag_min_4parts/mag.json \
+	--ip-config /data/ip_list_p4_zw.txt \
+	--ssh-port 2222 \
+	--cf /data/mag_min_4parts/mag_glem_from_checkpoints_4p_gnn_inf.yaml \
+	--num-epochs 50 --use-pseudolabel true \
+	--restore-model-path /data/mag_min_4parts/zw/mag_glem/ \
+	--restore-model-layers embed \
+	--freeze-lm-encoder-epochs 10 \
+	--batch-size 64 --lr 0.0001 \
+	--save-model-path /data/mag_min_4parts/zw/glem_cotrain_from_pretrained_full_graph_inf \
+	--topk-model-to-save 1
 	```
