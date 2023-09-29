@@ -206,9 +206,9 @@ python3 -m graphstorm.run.gs_node_classification \
 	--cf $GS_HOME/examples/mag/mag_gnn_nc.yaml \
 	--restore-model-path /data/mag_min_4parts/zw/mag_bert_nc_model/epoch-7/ \
 	--restore-model-layers dense_embed \
-	--save-model-path /data/mag_min_4parts/zw/mag_rgcn_model \
+	--save-model-path /data/mag_min_4parts/zw/mag_rgcn_model2 \
 	--topk-model-to-save 1
-# The accuracy is 56.42%.
+# The accuracy is 56.54%.
 ```
 
 The accuracy of RGCN with the BERT model fine-tuned with venue prediction is 63.22%,
@@ -254,19 +254,19 @@ while the accuracy of HGT is 67.20%.
 				--restore-model-layers embed
 
 	mkdir /data/mag_min_4parts/zw/mag_glem
-	ln -s /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 /data/mag_min_4parts/zw/mag_glem/LM
-	ln -s /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 /data/mag_min_4parts/zw/mag_glem/GNN
+	ln -s /data/mag_min_4parts/zw/mag_rgcn_model2/epoch-9 /data/mag_min_4parts/zw/mag_glem/LM
+	ln -s /data/mag_min_4parts/zw/mag_rgcn_model2/epoch-9 /data/mag_min_4parts/zw/mag_glem/GNN
 
 	# do an inference to make sure this checkpoint is good:
-python3 -m graphstorm.run.gs_node_classification \
---num-trainers 8 \
---num-servers 4 \
---num-samplers 0 --ssh-port 2222 \
---part-config /data/mag_min_4parts/mag.json \
---ip-config /data/ip_list_p4_zw.txt \
---cf $GS_HOME/examples/mag/mag_gnn_nc.yaml \
---restore-model-path /data/mag_min_4parts/zw/mag_rgcn_model/epoch-10 \
---inference \
+	python3 -m graphstorm.run.gs_node_classification \
+		--num-trainers 8 \
+		--num-servers 4 \
+		--num-samplers 0 --ssh-port 2222 \
+		--part-config /data/mag_min_4parts/mag.json \
+		--ip-config /data/ip_list_p4_zw.txt \
+		--cf $GS_HOME/examples/mag/mag_gnn_nc.yaml \
+		--restore-model-path /data/mag_min_4parts/zw/mag_rgcn_model2/epoch-9 \
+		--inference \
 		--use-mini-batch-infer true
 
 # train glem
