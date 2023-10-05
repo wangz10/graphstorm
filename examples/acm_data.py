@@ -37,6 +37,7 @@ from utils import convert_tensor_to_list_arrays
 
 def create_acm_raw_data(graph,
                         text_feat=None,
+                        featureless_author=False,
                         output_path=None):
     """Generate ACM data from DGL graph object created by create_acm_dgl_graph()
 
@@ -151,7 +152,6 @@ def create_acm_raw_data(graph,
         node_dict['node_type'] = ntype
         node_dict['format'] = {'name': 'parquet'}       # In this example, we just use parquet
         node_dict['files'] = node_file_paths[ntype]
-
         labels_list = []
         feats_list = []
         # check all dataframe columns
@@ -178,10 +178,11 @@ def create_acm_raw_data(graph,
                 # for this example, we do not have transform for features
                 feats_list.append(feat_dict)
         # set up the rest fileds of this node type
-        if feats_list:
-            node_dict['features'] = feats_list
-        if labels_list:
-            node_dict['labels'] = labels_list
+        if not(featureless_author and ntype == 'author'):
+            if feats_list:
+                node_dict['features'] = feats_list
+            if labels_list:
+                node_dict['labels'] = labels_list
         
         node_jsons.append(node_dict)
 
@@ -355,7 +356,7 @@ if __name__ == '__main__':
                         help="The path of folder to store downloaded ACM raw data")
     parser.add_argument('--dataset-name', type=str, default='acm',
                         help="The given name of the graph. Default: \'acm\'.")
-    parser.add_argument('--output-type', type=str, choices=['dgl', 'raw', 'raw_w_text'], default='raw',
+    parser.add_argument('--output-type', type=str, choices=['dgl', 'raw', 'raw_w_text', 'raw_w_text_featureless_author'], default='raw',
                         help="The output graph data type. It could be in DGL heterogeneous graph \
                               that can be used for partition; Or in a specific raw format that \
                               could be used for the GraphStorm\'s graph construction script; Or in \
@@ -380,10 +381,16 @@ if __name__ == '__main__':
         create_acm_raw_data(graph=g,
                             text_feat=None,
                             output_path=args.output_path)
-    elif args.output_type == 'raw_w_text':
+    elif args.output_type in ('raw_w_text', 'raw_w_text_featureless_author'):
         g, text_feat = create_acm_dgl_graph(dowload_path=args.download_path,
                                             is_split=False,
                                             dataset_name=args.dataset_name)
-        create_acm_raw_data(graph=g,
-                            text_feat=text_feat,
-                            output_path=args.output_path)
+        if args.output_type == 'raw_w_text':
+            create_acm_raw_data(graph=g,
+                                text_feat=text_feat,
+                                output_path=args.output_path)
+        else:
+            create_acm_raw_data(graph=g,
+                                text_feat=text_feat,
+                                featureless_author=True,
+                                output_path=args.output_path)
